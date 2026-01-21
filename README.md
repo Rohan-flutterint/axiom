@@ -97,7 +97,7 @@ Axiom coordinates. Engines execute.
 
 ## Current Status
 
-🚧 **Early development / design phase**
+**Early development / design phase**
 
 Initial focus:
 - Core metadata log
