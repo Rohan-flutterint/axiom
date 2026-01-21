@@ -49,9 +49,7 @@ pub fn replay_table_state<S: MetadataLogStore>(
 mod tests {
     use super::*;
     use crate::invariants::{Invariant, InvariantResult};
-    use crate::log::{
-        EventType, InMemoryLogStore, MetadataLog, TableEvent, TableId,
-    };
+    use crate::log::{EventType, InMemoryLogStore, MetadataLog, TableEvent, TableId};
     use crate::state::TableState;
     use uuid::Uuid;
 

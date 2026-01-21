@@ -4,6 +4,8 @@
 // This module is pure, deterministic, and side-effect free.
 
 use crate::log::{EventType, TableEvent};
+pub mod drift;
+pub mod policy;
 
 /// High-level lifecycle state of a table.
 ///
