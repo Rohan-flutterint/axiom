@@ -8,7 +8,8 @@ use crate::invariants::InvariantEngine;
 use crate::log::{MetadataLog, MetadataLogStore};
 use crate::replay::{replay_table_state, ReplayError};
 use crate::state::drift::{detect_drift, DriftReport};
-use crate::state::policy::{evaluate_drift_policy, DecisionPlan};
+use crate::state::policy::{evaluate_drift_policy_with_config, DecisionPlan};
+use crate::state::policy_config::PolicyConfig;
 use crate::state::TableState;
 
 /// Result of a full simulation run.
@@ -36,6 +37,7 @@ pub fn simulate_table<S: MetadataLogStore>(
     log: &MetadataLog<S>,
     invariants: &InvariantEngine,
     actual_state: &IcebergTableState,
+    policy: &PolicyConfig,
 ) -> Result<SimulationResult, SimulationError> {
     // 1. Derive expected state
     let expected_state = replay_table_state(log, invariants)?;
@@ -44,7 +46,8 @@ pub fn simulate_table<S: MetadataLogStore>(
     let drift_report = detect_drift(&expected_state, actual_state);
 
     // 3. Evaluate policy (dry-run)
-    let decision_plan = evaluate_drift_policy(&drift_report);
+    let decision_plan = evaluate_drift_policy_with_config(&drift_report, policy);
+
 
     Ok(SimulationResult {
         expected_state,
@@ -110,7 +113,12 @@ mod tests {
             current_schema_id: 1,
         };
 
-        let result = simulate_table(&log, &invariants, &actual).unwrap();
+        use crate::state::policy_config::PolicyConfig;
+
+        let policy = PolicyConfig::default_policy();
+
+        let result = simulate_table(&log, &invariants, &actual, &policy).unwrap();
+
 
         assert_eq!(result.expected_state, TableState::Mutating);
 

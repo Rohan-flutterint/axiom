@@ -1,0 +1,19 @@
+{
+  "rules": [
+    {
+      "severity": "Info",
+      "action": "Observe",
+      "reason": "info only"
+    },
+    {
+      "severity": "Warning",
+      "action": "Alert",
+      "reason": "notify data team"
+    },
+    {
+      "severity": "Critical",
+      "action": "Enforce",
+      "reason": "block or rollback"
+    }
+  ]
+}

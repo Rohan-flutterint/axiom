@@ -6,6 +6,7 @@
 use crate::log::{EventType, TableEvent};
 pub mod drift;
 pub mod policy;
+pub mod policy_config;
 
 /// High-level lifecycle state of a table.
 ///

@@ -4,13 +4,15 @@
 // This module is pure, deterministic, and auditable.
 
 use crate::state::drift::{DriftReport, DriftSeverity};
-use serde::Serialize;
+use crate::state::policy_config::PolicyConfig;
+use serde::{Serialize, Deserialize};
+
 
 /// Intended action for a detected drift.
 ///
 /// NOTE:
 /// These actions are *not executed* in dry-run mode.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum IntendedAction {
     /// Log only, no escalation.
     Observe,
@@ -46,30 +48,20 @@ impl DecisionPlan {
 ///
 /// In the future this will be configurable.
 /// For now it is deterministic and rule-based.
-pub fn evaluate_drift_policy(report: &DriftReport) -> DecisionPlan {
+pub fn evaluate_drift_policy_with_config(
+    report: &DriftReport,
+    config: &PolicyConfig,
+) -> DecisionPlan {
     let mut decisions = Vec::new();
 
     for finding in &report.findings {
-        let (action, reason) = match finding.severity {
-            DriftSeverity::Info => (
-                IntendedAction::Observe,
-                "informational drift, no action required",
-            ),
-            DriftSeverity::Warning => (
-                IntendedAction::Alert,
-                "warning-level drift, operator attention recommended",
-            ),
-            DriftSeverity::Critical => (
-                IntendedAction::Enforce,
-                "critical drift detected, enforcement would be required",
-            ),
-        };
-
-        decisions.push(PolicyDecision {
-            severity: finding.severity.clone(),
-            action,
-            reason: reason.into(),
-        });
+        if let Some(rule) = config.rules.iter().find(|r| r.severity == finding.severity) {
+            decisions.push(PolicyDecision {
+                severity: finding.severity.clone(),
+                action: rule.action.clone(),
+                reason: rule.reason.clone(),
+            });
+        }
     }
 
     DecisionPlan { decisions }
@@ -97,7 +89,9 @@ mod tests {
             ],
         };
 
-        let plan = evaluate_drift_policy(&report);
+        let config = PolicyConfig::default_policy();
+        let plan = evaluate_drift_policy_with_config(&report, &config);
+
 
         assert_eq!(plan.decisions.len(), 2);
         assert_eq!(plan.decisions[0].action, IntendedAction::Alert);
@@ -107,7 +101,8 @@ mod tests {
     #[test]
     fn empty_report_produces_empty_plan() {
         let report = DriftReport { findings: vec![] };
-        let plan = evaluate_drift_policy(&report);
+        let config = PolicyConfig::default_policy();
+        let plan = evaluate_drift_policy_with_config(&report, &config);
         assert!(plan.is_empty());
     }
 }

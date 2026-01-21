@@ -8,12 +8,17 @@ use axiom_kernel::adapters::iceberg::IcebergMetadata;
 use axiom_kernel::invariants::InvariantEngine;
 use axiom_kernel::log::{InMemoryLogStore, MetadataLog, TableEvent};
 use axiom_kernel::simulate::{simulate_table, SimulationResult};
+use axiom_kernel::state::policy_config::PolicyConfig;
 
 /// Axiom Control Plane CLI
 #[derive(Parser, Debug)]
 #[command(name = "axiom")]
 #[command(about = "Axiom data control plane (dry-run)", long_about = None)]
 struct Cli {
+    /// Path to policy config JSON
+    #[arg(long)]
+    policy: Option<String>,
+
     /// Path to metadata log JSON
     #[arg(long)]
     log: String,
@@ -48,6 +53,16 @@ fn main() -> Result<()> {
     }
 
     // ----------------------------
+    // Load Policy
+    // ----------------------------
+    let policy = if let Some(path) = cli.policy {
+        let data = fs::read_to_string(path)?;
+        serde_json::from_str::<PolicyConfig>(&data)?
+    } else {
+        PolicyConfig::default_policy()
+    };
+
+    // ----------------------------
     // Load Iceberg metadata
     // ----------------------------
     let iceberg_data = fs::read_to_string(&cli.iceberg)?;
@@ -66,7 +81,7 @@ fn main() -> Result<()> {
         expected_state,
         drift_report,
         decision_plan,
-    } = simulate_table(&log, &invariants, &iceberg_state)?;
+    } = simulate_table(&log, &invariants, &iceberg_state, &policy)?;
 
     // ----------------------------
     // Output

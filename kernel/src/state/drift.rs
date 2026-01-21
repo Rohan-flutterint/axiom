@@ -6,10 +6,11 @@
 
 use crate::adapters::iceberg::IcebergTableState;
 use crate::state::TableState;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
+
 
 /// Severity of detected drift.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DriftSeverity {
     /// Informational drift (no immediate risk).
     Info,
@@ -22,7 +23,7 @@ pub enum DriftSeverity {
 }
 
 /// Types of drift that can occur.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DriftType {
     UnexpectedMutation,
     SchemaMismatch,
