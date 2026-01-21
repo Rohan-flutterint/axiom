@@ -1,0 +1,10 @@
+{
+  "format-version": 2,
+  "table-uuid": "550e8400-e29b-41d4-a716-446655440000",
+  "current-snapshot-id": 42,
+  "current-schema-id": 1,
+  "schemas": [
+    { "schema-id": 0 },
+    { "schema-id": 1 }
+  ]
+}

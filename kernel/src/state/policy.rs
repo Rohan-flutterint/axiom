@@ -4,12 +4,13 @@
 // This module is pure, deterministic, and auditable.
 
 use crate::state::drift::{DriftReport, DriftSeverity};
+use serde::Serialize;
 
 /// Intended action for a detected drift.
 ///
 /// NOTE:
 /// These actions are *not executed* in dry-run mode.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub enum IntendedAction {
     /// Log only, no escalation.
     Observe,
@@ -22,7 +23,7 @@ pub enum IntendedAction {
 }
 
 /// A single policy decision.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct PolicyDecision {
     pub severity: DriftSeverity,
     pub action: IntendedAction,
@@ -30,7 +31,7 @@ pub struct PolicyDecision {
 }
 
 /// Output of policy evaluation.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct DecisionPlan {
     pub decisions: Vec<PolicyDecision>,
 }
