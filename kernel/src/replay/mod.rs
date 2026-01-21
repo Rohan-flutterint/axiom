@@ -4,7 +4,7 @@
 // producing a final derived table state.
 
 use crate::invariants::{InvariantEngine, InvariantViolation};
-use crate::log::MetadataLog;
+use crate::log::{LogError, MetadataLog, MetadataLogStore};
 use crate::state::{StateError, TableState, TableStateMachine};
 
 /// Errors that can occur during replay.
@@ -15,25 +15,28 @@ pub enum ReplayError {
 
     #[error("invariant violation: {0}")]
     Invariant(#[from] InvariantViolation),
+
+    #[error("log error: {0}")]
+    Log(#[from] LogError),
 }
 
 /// Replay the metadata log and derive the final table state.
 ///
 /// This is the *only* supported way to derive table state.
-pub fn replay_table_state(
-    log: &MetadataLog,
+pub fn replay_table_state<S: MetadataLogStore>(
+    log: &MetadataLog<S>,
     invariants: &InvariantEngine,
 ) -> Result<TableState, ReplayError> {
     let mut state_machine = TableStateMachine::new();
     let mut current_state = state_machine.current_state().clone();
 
-    for event in log.replay() {
+    for event in log.replay()? {
         // Apply event to state machine
-        state_machine.apply(event)?;
+        state_machine.apply(&event)?;
         let next_state = state_machine.current_state().clone();
 
         // Enforce invariants
-        invariants.evaluate(&current_state, event, &next_state)?;
+        invariants.evaluate(&current_state, &event, &next_state)?;
 
         // Commit transition
         current_state = next_state;
@@ -46,7 +49,9 @@ pub fn replay_table_state(
 mod tests {
     use super::*;
     use crate::invariants::{Invariant, InvariantResult};
-    use crate::log::{EventType, MetadataLog, TableEvent, TableId};
+    use crate::log::{
+        EventType, InMemoryLogStore, MetadataLog, TableEvent, TableId,
+    };
     use crate::state::TableState;
     use uuid::Uuid;
 
@@ -82,7 +87,9 @@ mod tests {
 
     #[test]
     fn replay_succeeds_with_valid_invariants() {
-        let mut log = MetadataLog::new();
+        let store = InMemoryLogStore::default();
+        let mut log = MetadataLog::new(store);
+
         log.append(event(1, EventType::TableCreated)).unwrap();
         log.append(event(2, EventType::SchemaUpdated)).unwrap();
         log.append(event(3, EventType::SnapshotAdded)).unwrap();
@@ -95,19 +102,21 @@ mod tests {
     }
 
     #[test]
-    fn replay_fails_on_invalid_transition() {
-        let mut log = MetadataLog::new();
+    fn replay_fails_on_invalid_transition_or_invariant() {
+        let store = InMemoryLogStore::default();
+        let mut log = MetadataLog::new(store);
+
+        // Illegal: schema update before table creation
         log.append(event(1, EventType::SchemaUpdated)).unwrap();
 
         let mut invariants = InvariantEngine::new();
         invariants.register(NoMutateFromCreated);
 
         let err = replay_table_state(&log, &invariants).unwrap_err();
-
-        // Could be state or invariant failure — both are acceptable
         let msg = err.to_string();
+
         assert!(
-            msg.contains("state machine") || msg.contains("illegal"),
+            msg.contains("state machine") || msg.contains("illegal") || msg.contains("invariant"),
             "unexpected error: {msg}"
         );
     }

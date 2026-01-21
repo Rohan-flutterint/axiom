@@ -2,6 +2,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use uuid::Uuid;
 
+mod store;
+pub use store::MetadataLogStore;
+
 /// Logical version of a table.
 pub type Version = u64;
 
@@ -29,21 +32,19 @@ pub struct TableEvent {
 pub enum LogError {
     #[error("version conflict: expected {expected}, got {actual}")]
     VersionConflict { expected: Version, actual: Version },
+
+    #[error("storage error: {0}")]
+    Storage(String),
 }
 
-#[derive(Debug, Default)]
-pub struct MetadataLog {
+/// In-memory store (reference implementation).
+#[derive(Default)]
+pub struct InMemoryLogStore {
     events: VecDeque<TableEvent>,
 }
 
-impl MetadataLog {
-    pub fn new() -> Self {
-        Self {
-            events: VecDeque::new(),
-        }
-    }
-
-    pub fn append(&mut self, event: TableEvent) -> Result<(), LogError> {
+impl MetadataLogStore for InMemoryLogStore {
+    fn append(&mut self, event: &TableEvent) -> Result<(), LogError> {
         let expected = match self.events.back() {
             Some(last) => last.version + 1,
             None => 1,
@@ -56,45 +57,38 @@ impl MetadataLog {
             });
         }
 
-        self.events.push_back(event);
+        self.events.push_back(event.clone());
         Ok(())
     }
 
-    pub fn replay(&self) -> impl Iterator<Item = &TableEvent> {
-        self.events.iter()
+    fn load(&self) -> Result<Vec<TableEvent>, LogError> {
+        Ok(self.events.iter().cloned().collect())
     }
 
-    pub fn current_version(&self) -> Version {
-        self.events.back().map(|e| e.version).unwrap_or(0)
+    fn current_version(&self) -> Result<Version, LogError> {
+        Ok(self.events.back().map(|e| e.version).unwrap_or(0))
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Semantic metadata log backed by a store.
+pub struct MetadataLog<S: MetadataLogStore> {
+    store: S,
+}
 
-    #[test]
-    fn append_and_replay() {
-        let table_id = TableId(Uuid::new_v4());
-        let mut log = MetadataLog::new();
+impl<S: MetadataLogStore> MetadataLog<S> {
+    pub fn new(store: S) -> Self {
+        Self { store }
+    }
 
-        log.append(TableEvent {
-            table_id: table_id.clone(),
-            version: 1,
-            event_type: EventType::TableCreated,
-            payload: vec![],
-        })
-        .unwrap();
+    pub fn append(&mut self, event: TableEvent) -> Result<(), LogError> {
+        self.store.append(&event)
+    }
 
-        log.append(TableEvent {
-            table_id,
-            version: 2,
-            event_type: EventType::SchemaUpdated,
-            payload: vec![1, 2, 3],
-        })
-        .unwrap();
+    pub fn replay(&self) -> Result<Vec<TableEvent>, LogError> {
+        self.store.load()
+    }
 
-        let events: Vec<_> = log.replay().collect();
-        assert_eq!(events.len(), 2);
+    pub fn current_version(&self) -> Result<Version, LogError> {
+        self.store.current_version()
     }
 }
